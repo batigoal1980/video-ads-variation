@@ -1,0 +1,162 @@
+const express = require('express');
+const multer = require('multer');
+const ffmpeg = require('fluent-ffmpeg');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
+const { exec } = require('child_process');
+const axios = require('axios');
+
+const app = express();
+const upload = multer({ dest: 'uploads/' });
+
+// Ensure necessary directories exist
+['uploads', 'processed', 'transcriptions', 'new_audio'].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir);
+  }
+});
+
+app.use(cors());
+app.use(express.json());
+
+// ElevenLabs API key (replace with your actual key)
+ELEVENLABS_API_KEY = "sk_5967397e69fac16f0f0ffe3a1ea9c506f27f962ccceb30af"
+VOICE_ID = "cgSgspJ2msm6clMCkdW9" 
+
+// Existing upload endpoint
+app.post('/upload', upload.single('video'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No file uploaded.');
+  }
+  
+  const videoPath = req.file.path;
+  const videoName = path.parse(req.file.originalname).name;
+  
+  // Generate thumbnail
+  const thumbnailPath = `processed/${videoName}_thumbnail.png`;
+  ffmpeg(videoPath)
+    .screenshots({
+      count: 1,
+      folder: 'processed',
+      filename: `${videoName}_thumbnail.png`,
+      size: '320x180'
+    });
+
+  // Extract audio
+  const audioPath = `processed/${videoName}.mp3`;
+  ffmpeg(videoPath)
+    .output(audioPath)
+    .audioCodec('libmp3lame')
+    .on('end', () => {
+      console.log('Audio extraction complete');
+      // Start transcription after audio extraction
+      transcribeAudio(audioPath, videoName);
+    })
+    .run();
+
+  res.json({
+    message: 'Video uploaded and processing started',
+    videoName: videoName,
+    thumbnailPath: thumbnailPath,
+    audioPath: audioPath
+  });
+});
+
+// New function to transcribe audio using Whisper
+function transcribeAudio(audioPath, videoName) {
+  const outputPath = path.join('transcriptions', `${videoName}.txt`);
+  exec(`whisper "${audioPath}" --model base --output_dir transcriptions --output_format txt`, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Transcription error: ${error}`);
+      return;
+    }
+    console.log(`Transcription complete for ${videoName}`);
+    // After transcription, start text-to-speech
+    const transcription = fs.readFileSync(outputPath, 'utf8');
+    textToSpeech(transcription, videoName);
+  });
+}
+
+// New function for text-to-speech using ElevenLabs
+async function textToSpeech(text, videoName) {
+  try {
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
+      { text },
+      {
+        headers: {
+          'Accept': 'audio/mpeg',
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        responseType: 'arraybuffer',
+      }
+    );
+
+    const outputPath = path.join('new_audio', `${videoName}_tts.mp3`);
+    fs.writeFileSync(outputPath, response.data);
+    console.log(`Text-to-speech complete for ${videoName}`);
+
+    // After text-to-speech, merge new audio with original video
+    mergeAudioWithVideo(videoName);
+  } catch (error) {
+    console.error('Error in text-to-speech:', error);
+  }
+}
+
+// New function to merge new audio with original video
+function mergeAudioWithVideo(videoName) {
+  const videoPath = path.join('uploads', videoName);
+  const newAudioPath = path.join('new_audio', `${videoName}_tts.mp3`);
+  const outputPath = path.join('processed', `${videoName}_new_audio.mp4`);
+
+  ffmpeg(videoPath)
+    .input(newAudioPath)
+    .audioCodec('aac')
+    .videoCodec('libx264')
+    .on('error', (err) => {
+      console.error('An error occurred during merging:', err.message);
+    })
+    .on('end', () => {
+      console.log(`Processing complete for ${videoName}`);
+    })
+    .save(outputPath);
+}
+
+// Endpoint to get processing status
+app.get('/status/:videoName', (req, res) => {
+  const videoName = req.params.videoName;
+  const thumbnailPath = `processed/${videoName}_thumbnail.png`;
+  const audioPath = `processed/${videoName}.mp3`;
+  const transcriptionPath = `transcriptions/${videoName}.txt`;
+  const newAudioPath = `new_audio/${videoName}_tts.mp3`;
+  const finalVideoPath = `processed/${videoName}_new_audio.mp4`;
+
+  const status = {
+    thumbnailReady: fs.existsSync(thumbnailPath),
+    audioExtracted: fs.existsSync(audioPath),
+    transcriptionReady: fs.existsSync(transcriptionPath),
+    newAudioReady: fs.existsSync(newAudioPath),
+    finalVideoReady: fs.existsSync(finalVideoPath)
+  };
+
+  res.json(status);
+});
+
+// Serve processed files
+app.use('/processed', express.static('processed'));
+app.use('/transcriptions', express.static('transcriptions'));
+app.use('/new_audio', express.static('new_audio'));
+
+// Serve video files
+app.get('/video/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const videoPath = path.join(__dirname, 'uploads', filename);
+  res.sendFile(videoPath);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
