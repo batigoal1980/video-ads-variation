@@ -5,7 +5,7 @@
   "scripts": {
     "start": "cd video-ads-backend && npm install && npm start",
     "heroku-postbuild": "cd video-ads-uploader && npm install && npm run build",
-    "build": "cd video-ads-uploader && npm install && npm run build"
+    "build": "cd video-ads-uploader && npm install && npm run build --output public"
   },
   "engines": {
     "node": "20.x"
