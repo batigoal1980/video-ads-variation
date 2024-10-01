@@ -4,9 +4,8 @@
   "description": "Video Ads Uploader with frontend and backend",
   "main": "index.js",
   "scripts": {
-    "start": "cd video-ads-backend && npm start",
-    "heroku-postbuild": "cd video-ads-uploader && npm install && npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "cd video-ads-backend && npm install && npm start",
+    "heroku-postbuild": "cd video-ads-uploader && npm install && npm run build"
   },
   "engines": {
     "node": "14.x"
