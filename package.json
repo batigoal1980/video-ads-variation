@@ -1,6 +1,6 @@
 {
   "name": "video-ads-uploader-project",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Video Ads Uploader with frontend and backend",
   "main": "index.js",
   "scripts": {
