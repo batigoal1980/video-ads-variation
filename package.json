@@ -1,12 +1,17 @@
-   {
-     "name": "video-ads-uploader",
-     "version": "1.0.0",
-     "engines": {
-       "node": "14.x"
-     },
-     "scripts": {
-       "start": "cd video-ads-backend && npm start",
-       "build": "cd video-ads-uploader && npm run build",
-       "heroku-postbuild": "npm run build"
-     }
-   }
+{
+  "name": "video-ads-uploader-project",
+  "version": "1.0.0",
+  "description": "Video Ads Uploader with frontend and backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "cd video-ads-backend && npm start",
+    "heroku-postbuild": "cd video-ads-uploader && npm install && npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": "14.x"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
